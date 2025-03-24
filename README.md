@@ -20,6 +20,12 @@ In this part, json data is read and an formatted into a defined structure, then 
 ## 3. Loading
 The last step, data loading, reads parquet file and stores that data into a staging table. After that, a merge operation is performed from that staging table into the final table `fire_incidents`. With this approach we allow this pipeline to be highly scalable, as it is not reading all data from data table to perform the merging operation, instead, we only have the new data stored in the staging table coming into the final table using the `INSERT` statement along with `ON CONFLICT (id) DO UPDATE`.
 
+## 4. Log System
+You will see that each script has a log and a print toghether, this was designed so if you execute this project in the terminal, you can see the progress of each step, but also to keep track of all the executions that have been made in case this is orchestrated with a tool like Airflow, mage, dagster, etc.
+For checking the logs, you can go to the `logs` folder and search for the date you want to review.
+
+---
+
 This project was built thinking on the feature, so hardcoding was avoided to let new etl pipelines for new datasets be included in an easy way, reusing the existing etl scripts.
 Also, the structure of data folders was designed to work on a daily basis execution, so we can have track of the execution of each day, because of that, you will be able to see it like `data/landing/yyyy/mm/dd/` that way we allow the different scripts were to look each day, without harcoding any value.
 
