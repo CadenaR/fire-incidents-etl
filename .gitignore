@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.log
+
+# Environments
+.env
+.venv/
+fire_incidents_env/
+
+# OS
+.DS_Store
+
+# Data
+/data
