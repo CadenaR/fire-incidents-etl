@@ -5,7 +5,6 @@ import logging
 from sodapy import Socrata
 from datetime import datetime
 from dotenv import load_dotenv
-from sqlalchemy import text, Engine
 
 load_dotenv()
 
@@ -15,35 +14,7 @@ API_ENDPOINT = os.getenv("API_ENDPOINT")
 LZ_PATH = os.getenv("LZ_PATH")
 
 
-def get_latest_ts(engine: Engine, entity: str, search_column: str) -> str:
-    query = text(f"SELECT MAX({search_column}) AS max_{entity} FROM {entity};")
-
-    with engine.begin() as conn:
-        result = conn.execute(query).fetchone()
-        max_timestamp = result[0]
-
-    if max_timestamp:
-        formatted_ts = max_timestamp.strftime("%Y-%m-%dT%H:%M:%S")
-        logging.info(f"Max {entity}: {formatted_ts}")
-        print(f"Max {entity}: {formatted_ts}")
-        return formatted_ts
-    else:
-        logging.info(f"No data found in {entity}.")
-        print(f"No data found in {entity}.")
-        return ""
-
-
-def get_incidents(
-    client: Socrata, latest_ts: str, date_column: str, limit: int, offset: int
-) -> list:
-    if latest_ts:
-        q_filter = f"{date_column} between '{latest_ts}' and '9999-01-10T00:00:00' order by {date_column} limit {limit} offset {offset}"
-        return client.get(API_ENDPOINT, where=q_filter)
-
-    return client.get(API_ENDPOINT, order=date_column, limit=limit, offset=offset)
-
-
-def extract_api_incident_data(engine: Engine, entity: str, date_column: str, limit: int):
+def extract_api_incident_data(entity: str, date_column: str, limit: int):
     offset = 0
     counter = 0
 
@@ -52,11 +23,11 @@ def extract_api_incident_data(engine: Engine, entity: str, date_column: str, lim
         API_KEY,
     )
 
-    latest_ts = get_latest_ts(engine, entity, date_column)
-
     while True:
         new_incidents = []
-        new_incidents = get_incidents(client, latest_ts, date_column, limit, offset)
+        new_incidents = client.get(
+            API_ENDPOINT, order=date_column, limit=limit, offset=offset
+        )
 
         if not new_incidents:
             logging.info(f"{counter} records have been stored")

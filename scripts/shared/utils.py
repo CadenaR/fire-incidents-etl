@@ -26,21 +26,6 @@ def get_postgres_engine() -> Engine:
     return engine
 
 
-def create_stg_table(engine: Engine, entity: str):
-    logging.info("Creating tables if don't exist")
-    print("Creating tables if don't exist")
-    create_sql = ddl.get(entity)
-    copy_sql = f"""
-    CREATE TABLE IF NOT EXISTS {entity}_staging AS
-    SELECT * FROM {entity}
-    WHERE 1=2;
-    """
-    if create_sql:
-        with engine.begin() as conn:
-            conn.execute(text(create_sql))
-            conn.execute(text(copy_sql))
-
-
 def create_log_table(engine: Engine):
     logging.info("Creating logs table if not exist")
     print("Creating logs table if not exist")

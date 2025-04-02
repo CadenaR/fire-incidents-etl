@@ -1,0 +1,13 @@
+version: 2
+
+sources:
+  - name: public
+    tables:
+      - name: fire_incidents_staging
+    
+models:
+  - name: fire_incidents_silver
+    description: "Latest valid snapshot of each fire incident"
+
+  - name: fire_incidents
+    description: "Final mart table including soft-deleted records"

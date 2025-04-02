@@ -1,6 +1,6 @@
 ddl = {
     "fire_incidents": """
-    CREATE TABLE IF NOT EXISTS fire_incidents (
+    CREATE TABLE IF NOT EXISTS fire_incidents_staging (
         incident_number TEXT,
         exposure_number INTEGER,
         id TEXT PRIMARY KEY,
