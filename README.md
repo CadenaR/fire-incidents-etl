@@ -21,15 +21,15 @@ The last step, data loading, reads parquet file and stores that data into a `fir
 
 *NOTE*: Either for `fire_incidents_silver` and `fire_incidents` have schema enforcement as dbt can't infer nor inherit schema from other existing tables with a defined schema.
 
+## 4. Log System
+You will see that each script has a log and a print toghether, this was designed so if you execute this project in the terminal, you can see the progress of each step, but also to keep track of all the executions that have been made in case this is orchestrated with a tool like Airflow, mage, dagster, etc.
+For checking the logs, you can go to the `logs` folder and search for the date you want to review.
+
 ## Deduplication and Deletion Handling
 Deduplication happens in three parts (step 3 also handles deletions):
 1. When transforming data, deduplication happens at dataset level, by sorting data based on `date_as_of` table and taking `id` as the subset, taking only the last record (This will only preserve most recent records when they are duplicated).
 2. When running dbt `fire_incidents_silver` model data gets another deduplication check by making a ROW_COUNT() over the whole data in `fire_incidents_staging`, sorting by `data_as_of` in descendant order so that only the most recent record gets into the silver table.
 3. Finally, data from `fire_incidents_silver` table gets into `fire_incidents` table by making a full outer join, this helps us to avoid inserting duplicates, it merges data and also tracks records that have been deleted from the `fire_incidents` API DB by checking if incoming data (`fire_incidents_silver` aliased as `current`) is not anymore in the previous data (`fire_incidents` aliased as `previous`). When an existing record is not in the current data, a column called `is_active` will be set to `False`, which help us to soft delete records, hence we will have track of them in case it is needed.
-
-## 4. Log System
-You will see that each script has a log and a print toghether, this was designed so if you execute this project in the terminal, you can see the progress of each step, but also to keep track of all the executions that have been made in case this is orchestrated with a tool like Airflow, mage, dagster, etc.
-For checking the logs, you can go to the `logs` folder and search for the date you want to review.
 
 ## Sample Query
 This query shows total fire incidents by year:
