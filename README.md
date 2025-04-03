@@ -11,18 +11,41 @@ The intention of this ETL was to follow a medallion-alike architecture, having a
 The project works as follows:
 
 ## 1. Extraction 
-Data is collected from the API and stored in raw format as a compressed json, this helps to have a track of all historical data in its original form in case something happens in the future in the other layers. Storing it in a compressed format, helps us to reduce storage space, which allows the project to be cost efficient.
-This part of the ETL checks when is the maximum `date_as_of` date, as it is the attribute that tells when a record was updated. If there is nothing in the DB, it will execute a historical load, otherwise, it will get the records that were updated after that (like a delta load)
+Historical data is collected from the API and stored in raw format as a compressed json, this helps to have a track of all historical data in its original form in case something happens in the future in the other layers. Storing it in a compressed format, helps us to reduce storage space, which allows the project to be cost efficient.
 
 ## 2. Transformation
 In this part, json data is read and an formatted into a defined structure, then it is deduplicated based on its `id` column and a schema enforcement is applied, to keep all data types consistent. Finally, it is loaded into the `staging` path as a parquet, which will allow us to also keep track of how data has been evolving.
 
-## 3. Loading
-The last step, data loading, reads parquet file and stores that data into a staging table. After that, a merge operation is performed from that staging table into the final table `fire_incidents`. With this approach we allow this pipeline to be highly scalable, as it is not reading all data from data table to perform the merging operation, instead, we only have the new data stored in the staging table coming into the final table using the `INSERT` statement along with `ON CONFLICT (id) DO UPDATE`.
+## 3. Loading and DBT models
+The last step, data loading, reads parquet file and stores that data into a `fire_incidents_staging` table. After that, dbt models get executed and data from `fire_incidents_staging` table goes into `fire_incidents_silver`, deduplicating data from `fire_incidents_staging` table, then data from `fire_incidents_silver` table goes into `fire_incidents`, deduplicating previous data (`fire_incidents`) with current data (`fire_incidents_silver`) and adding `is_active` column to handle deleted records.
+
+*NOTE*: Either for `fire_incidents_silver` and `fire_incidents` have schema enforcement as dbt can't infer nor inherit schema from other existing tables with a defined schema.
+
+## Deduplication and Deletion Handling
+Deduplication happens in three parts (step 3 also handles deletions):
+1. When transforming data, deduplication happens at dataset level, by sorting data based on `date_as_of` table and taking `id` as the subset, taking only the last record (This will only preserve most recent records when they are duplicated).
+2. When running dbt `fire_incidents_silver` model data gets another deduplication check by making a ROW_COUNT() over the whole data in `fire_incidents_staging`, sorting by `data_as_of` in descendant order so that only the most recent record gets into the silver table.
+3. Finally, data from `fire_incidents_silver` table gets into `fire_incidents` table by making a full outer join, this helps us to avoid inserting duplicates, it merges data and also tracks records that have been deleted from the `fire_incidents` API DB by checking if incoming data (`fire_incidents_silver` aliased as `current`) is not anymore in the previous data (`fire_incidents` aliased as `previous`). When an existing record is not in the current data, a column called `is_active` will be set to `False`, which help us to soft delete records, hence we will have track of them in case it is needed.
 
 ## 4. Log System
 You will see that each script has a log and a print toghether, this was designed so if you execute this project in the terminal, you can see the progress of each step, but also to keep track of all the executions that have been made in case this is orchestrated with a tool like Airflow, mage, dagster, etc.
 For checking the logs, you can go to the `logs` folder and search for the date you want to review.
+
+## Sample Query
+This query shows total fire incidents by year:
+
+```sql
+SELECT
+  TO_CHAR(incident_date, 'YYYY') AS Year,
+  COUNT(*) AS total_incidents
+FROM fire_incidents
+WHERE is_active = TRUE
+GROUP BY 1
+ORDER BY 1 DESC;
+```
+
+![image](https://github.com/user-attachments/assets/0ed0622c-dc5a-42d3-a3a3-696688748d55)
+
 
 ---
 
@@ -57,7 +80,26 @@ Make sure you update the `POSTGRES_USER`, `POSTGRES_PASSWORD` and `POSTGRES_DB` 
 docker-compose up -d
 ```
 
-### 5. Run the pipeline
+### 5. Set up DBT
+Create profiles.yml file by running `~/.dbt/profiles.yml` in your bash and then write the following inside:
+
+```
+fire_incidents_project:
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      host: localhost
+      user: <your-postgres-user>
+      password: <your-postgres-password>
+      port: 5432
+      dbname: <your-postgres-database>
+      schema: public
+      threads: 1
+```
+
+
+### 6. Run the pipeline
 ```bash
 python scripts/fire_incidents_etl.py
 ```
